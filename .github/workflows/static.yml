@@ -28,6 +28,16 @@ jobs:
         with:
           ref: main  # 明确指定分支
 
+      # 安装 Pandoc
+      - name: Install Pandoc
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y pandoc  # 安装最新稳定版
+
+      # 验证 Pandoc 版本（调试用）
+      - name: Check Pandoc Version
+        run: pandoc --version  # 确认安装成功
+
       # 2. 安装 Node.js（Hexo 依赖）
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,6 +48,10 @@ jobs:
       # 全局安装 Hexo CLI
       - name: Install Hexo Globally
         run: npm install -g hexo-cli  # 全局安装命令行工具[1,4,6](@ref)
+
+      # 验证 Hexo 是否可用（调试用）
+      - name: Check Hexo Version
+        run: hexo -v  # 确认命令可识别[4](@ref)
       
       # 3. 安装 Hexo 插件并构建
       - name: Install dependencies

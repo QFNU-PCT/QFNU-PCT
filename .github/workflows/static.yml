@@ -4,11 +4,12 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-# 权限配置（官方方案优化）
+# 权限配置（官方方案优化）[3](@ref)
 permissions:
-  contents: read    # 读取代码
-  pages: write      # 写入 Pages 配置
-  id-token: write   # 生成 JWT 令牌
+  contents: read
+  pages: write
+  id-token: write
+  actions: write  # 新增权限解决 API 调用问题
 
 # 并发控制（避免部署冲突）
 concurrency:
@@ -19,68 +20,75 @@ jobs:
   build-and-deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}  # 自动获取 Pages URL
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出代码（官方 Action）
+      # 1. 检出代码
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: main  # 明确指定分支
+          ref: main
 
-      # 安装 Pandoc
+      # 2. 安装 Pandoc（渲染器依赖）
       - name: Install Pandoc
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y pandoc  # 安装最新稳定版
-
-      # 验证 Pandoc 版本（调试用）
+          sudo apt-get install -y pandoc
+        # 验证安装
       - name: Check Pandoc Version
-        run: pandoc --version  # 确认安装成功
+        run: pandoc --version
 
-      # 2. 安装 Node.js（Hexo 依赖）
+      # 3. 设置 Node.js 环境
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"  # 缓存依赖加速构建
-          
-      # 全局安装 Hexo CLI
-      - name: Install Hexo Globally
-        run: npm install -g hexo-cli  # 全局安装命令行工具[1,4,6](@ref)
+          cache: "npm"
 
-      # 新增关键步骤：强制修复依赖
-      - name: Rebuild Hexo Modules
+      # 4. 缓存 node_modules 加速构建 [6](@ref)
+      - name: Cache Node Modules
+        uses: actions/cache@v3
+        id: cache-modules  # 用于后续步骤判断缓存命中
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+
+      # 5. 合并依赖安装步骤（核心优化）
+      - name: Install Dependencies
         run: |
-          rm -rf node_modules  # 删除损坏的依赖目录
-          npm install --force  # 强制重新安装（忽略版本冲突）[1,2](@ref)
-
-      # 验证 Hexo 是否可用（调试用）
+          npm install -g hexo-cli  # 全局安装 CLI
+          npm install hexo-renderer-pandoc --save  # 安装渲染器
+          npm install --force  # 强制修复依赖冲突
+        # 验证 Hexo
       - name: Check Hexo Version
-        run: hexo -v  # 确认命令可识别[4](@ref)
-      
-      # 3. 安装 Hexo 插件并构建
-      - name: Install dependencies
-        run: |
-          npm install hexo-renderer-pandoc --save
-          npm install  # 安装 package.json 中的依赖
+        run: hexo -v
 
+      # 6. 生成静态文件
       - name: Build Hexo site
         run: |
           hexo clean
-          hexo g  # 生成静态文件到 ./public
+          hexo g  # 生成到 ./public
 
-      # 4. 配置 Pages 环境（官方步骤）
+      # 7. 校验构建结果（关键防御）
+      - name: Verify Public Files
+        run: |
+          if [ ! -f public/index.html ]; then
+            echo "ERROR: 构建失败 - public/index.html 未生成"
+            exit 1
+          fi
+          echo "校验通过：检测到 index.html"
+
+      # 8. 配置 Pages 环境
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      # 5. 上传构建产物（关键修改：指向 Hexo 输出目录）
+      # 9. 上传构建产物
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "./public"  # 仅上传 Hexo 生成的静态文件
+          path: "./public"
 
-      # 6. 部署到 Pages（官方 Action）
+      # 10. 部署到 GitHub Pages
       - name: Deploy to GitHub Pages
-        id: deployment  # 用于获取 URL
+        id: deployment
         uses: actions/deploy-pages@v4

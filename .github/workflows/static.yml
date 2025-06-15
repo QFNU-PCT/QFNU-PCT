@@ -1,0 +1,62 @@
+name: Deploy Hexo to GitHub Pages
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+# 权限配置（官方方案优化）
+permissions:
+  contents: read    # 读取代码
+  pages: write      # 写入 Pages 配置
+  id-token: write   # 生成 JWT 令牌
+
+# 并发控制（避免部署冲突）
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}  # 自动获取 Pages URL
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 检出代码（官方 Action）
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main  # 明确指定分支
+
+      # 2. 安装 Node.js（Hexo 依赖）
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"  # 缓存依赖加速构建
+
+      # 3. 安装 Hexo 插件并构建
+      - name: Install dependencies
+        run: |
+          npm install hexo-renderer-pandoc --save
+          npm install  # 安装 package.json 中的依赖
+
+      - name: Build Hexo site
+        run: |
+          hexo clean
+          hexo g  # 生成静态文件到 ./public
+
+      # 4. 配置 Pages 环境（官方步骤）
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # 5. 上传构建产物（关键修改：指向 Hexo 输出目录）
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./public"  # 仅上传 Hexo 生成的静态文件
+
+      # 6. 部署到 Pages（官方 Action）
+      - name: Deploy to GitHub Pages
+        id: deployment  # 用于获取 URL
+        uses: actions/deploy-pages@v4

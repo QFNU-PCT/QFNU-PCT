@@ -49,6 +49,12 @@ jobs:
       - name: Install Hexo Globally
         run: npm install -g hexo-cli  # 全局安装命令行工具[1,4,6](@ref)
 
+      # 新增关键步骤：强制修复依赖
+      - name: Rebuild Hexo Modules
+        run: |
+          rm -rf node_modules  # 删除损坏的依赖目录
+          npm install --force  # 强制重新安装（忽略版本冲突）[1,2](@ref)
+
       # 验证 Hexo 是否可用（调试用）
       - name: Check Hexo Version
         run: hexo -v  # 确认命令可识别[4](@ref)

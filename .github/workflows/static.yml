@@ -34,7 +34,11 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"  # 缓存依赖加速构建
-
+          
+      # 全局安装 Hexo CLI
+      - name: Install Hexo Globally
+        run: npm install -g hexo-cli  # 全局安装命令行工具[1,4,6](@ref)
+      
       # 3. 安装 Hexo 插件并构建
       - name: Install dependencies
         run: |
